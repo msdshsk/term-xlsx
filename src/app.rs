@@ -514,6 +514,24 @@ impl<'a> App<'a> {
             || lower.contains('h') || lower.contains("am") || lower.contains("pm")
     }
 
+    /// Convert date format to ISO format (yyyy-mm-dd or yyyy-mm-dd hh:mm:ss)
+    fn normalize_date_format(format_code: &str) -> &'static str {
+        let lower = format_code.to_lowercase();
+        // Check if it includes time
+        if lower.contains('h') || lower.contains("am") || lower.contains("pm") {
+            // Date + Time
+            if lower.contains('y') || lower.contains('d') {
+                "yyyy-mm-dd hh:mm:ss"
+            } else {
+                // Time only
+                "hh:mm:ss"
+            }
+        } else {
+            // Date only
+            "yyyy-mm-dd"
+        }
+    }
+
     /// Get cell value, truncated to fit column width with ellipsis
     pub fn get_cell_display(&self, col: u32, row: u32) -> String {
         if let Some(sheet) = self.spreadsheet.get_sheet(&self.current_sheet_index) {
@@ -539,8 +557,9 @@ impl<'a> App<'a> {
                     if let Some(num_fmt) = cell.get_style().get_number_format() {
                         let format_code = num_fmt.get_format_code();
                         if Self::is_date_format(format_code) {
-                            // Apply date formatting
-                            to_formatted_string(&raw_value, format_code)
+                            // Apply ISO date formatting (yyyy-mm-dd)
+                            let iso_format = Self::normalize_date_format(format_code);
+                            to_formatted_string(&raw_value, iso_format)
                         } else if format_code != NumberingFormat::FORMAT_GENERAL {
                             // Apply other number formatting
                             to_formatted_string(&raw_value, format_code)

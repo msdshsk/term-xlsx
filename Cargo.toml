@@ -11,3 +11,6 @@ clap = { version = "4.5.20", features = ["derive"] }
 anyhow = "1.0.93"
 tui-textarea = "0.7.0"
 
+[build-dependencies]
+winres = "0.1"
+
