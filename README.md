@@ -51,6 +51,7 @@ If the file doesn't exist, a new spreadsheet will be created.
 | Ctrl+End | Jump to last used cell |
 | PageUp | Previous sheet |
 | PageDown | Next sheet |
+| F4 | Open sheet selector |
 
 ### Selection
 

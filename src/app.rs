@@ -17,6 +17,7 @@ pub const MAX_ROWS: u32 = 65536;
 pub enum Mode {
     View,
     Edit,
+    SheetSelect,
 }
 
 /// Selection range: (start_row, start_col, end_row, end_col) all 1-based
@@ -87,6 +88,7 @@ pub struct App<'a> {
     pub status_message: Option<String>,
     pub viewport_size: (u16, u16), // (rows, cols) visible in grid
     pub cell_marks: HashMap<(usize, u32, u32), CellMark>, // (sheet_index, row, col) -> mark
+    pub sheet_select_index: usize, // cursor position in sheet select mode
 }
 
 impl<'a> App<'a> {
@@ -117,6 +119,7 @@ impl<'a> App<'a> {
             status_message: None,
             viewport_size: (20, 10), // Default, will be updated by UI
             cell_marks,
+            sheet_select_index: 0,
         })
     }
 
@@ -258,6 +261,18 @@ impl<'a> App<'a> {
                     KeyCode::Char('4') => self.set_mark_for_selection(CellMark::GreenText),
                     KeyCode::Char('5') => self.set_mark_for_selection(CellMark::BlueBg),
                     KeyCode::Char('6') => self.set_mark_for_selection(CellMark::MagentaText),
+                    // F4: Enter sheet selection mode
+                    KeyCode::F(4) => self.enter_sheet_select_mode(),
+                    _ => {}
+                }
+            }
+            Mode::SheetSelect => {
+                match key.code {
+                    KeyCode::Esc => self.mode = Mode::View,
+                    KeyCode::Enter => self.confirm_sheet_selection(),
+                    // Navigation: W/S or Up/Down
+                    KeyCode::Char('w') | KeyCode::Up => self.sheet_select_move(-1),
+                    KeyCode::Char('s') | KeyCode::Down => self.sheet_select_move(1),
                     _ => {}
                 }
             }
@@ -561,5 +576,31 @@ impl<'a> App<'a> {
     pub fn get_cell_mark(&self, row: u32, col: u32) -> CellMark {
         let key = (self.current_sheet_index, row, col);
         self.cell_marks.get(&key).copied().unwrap_or(CellMark::None)
+    }
+
+    fn enter_sheet_select_mode(&mut self) {
+        self.sheet_select_index = self.current_sheet_index;
+        self.mode = Mode::SheetSelect;
+    }
+
+    fn sheet_select_move(&mut self, delta: i32) {
+        let count = self.spreadsheet.get_sheet_count();
+        if count == 0 {
+            return;
+        }
+        let new_index = (self.sheet_select_index as i32 + delta).rem_euclid(count as i32) as usize;
+        self.sheet_select_index = new_index;
+    }
+
+    fn confirm_sheet_selection(&mut self) {
+        self.current_sheet_index = self.sheet_select_index;
+        self.mode = Mode::View;
+    }
+
+    pub fn get_sheet_names(&self) -> Vec<String> {
+        self.spreadsheet.get_sheet_collection()
+            .iter()
+            .map(|s| s.get_name().to_string())
+            .collect()
     }
 }
