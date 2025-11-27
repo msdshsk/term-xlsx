@@ -1,0 +1,13 @@
+[package]
+name = "term-xlsx"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ratatui = "0.29.0"
+crossterm = "0.28.1"
+umya-spreadsheet = "1.1.3"
+clap = { version = "4.5.20", features = ["derive"] }
+anyhow = "1.0.93"
+tui-textarea = "0.7.0"
+
