@@ -3,7 +3,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use tui_textarea::TextArea;
-use umya_spreadsheet::{Color, PatternValues, Spreadsheet};
+use umya_spreadsheet::{Color, NumberingFormat, PatternValues, Spreadsheet, helper::number_format::to_formatted_string};
 
 pub const DEFAULT_COLUMN_WIDTH: u16 = 10;
 pub const COLUMN_WIDTH_STEP: u16 = 2;
@@ -390,6 +390,16 @@ impl<'a> App<'a> {
     }
 
     fn enter_edit_mode(&mut self) {
+        // Check if this is a formula cell (read-only)
+        if self.is_formula_cell(self.cursor.1, self.cursor.0) {
+            // Show the formula in status message instead of editing
+            if let Some(sheet) = self.spreadsheet.get_sheet(&self.current_sheet_index) {
+                let formula = sheet.get_cell_value((self.cursor.1, self.cursor.0)).get_formula();
+                self.status_message = Some(format!("Formula (read-only): ={}", formula));
+            }
+            return;
+        }
+
         self.mode = Mode::Edit;
         if let Some(sheet) = self.spreadsheet.get_sheet(&self.current_sheet_index) {
             let value = sheet.get_cell_value((self.cursor.1, self.cursor.0));
@@ -482,18 +492,75 @@ impl<'a> App<'a> {
         self.status_message = Some(format!("Pasted {}x{} cells", rows, cols));
     }
 
+    /// Check if a cell contains a formula
+    pub fn is_formula_cell(&self, col: u32, row: u32) -> bool {
+        if let Some(sheet) = self.spreadsheet.get_sheet(&self.current_sheet_index) {
+            let cell_value = sheet.get_cell_value((col, row));
+            !cell_value.get_formula().is_empty()
+        } else {
+            false
+        }
+    }
+
+    /// Check if a format code represents a date/time format
+    fn is_date_format(format_code: &str) -> bool {
+        // Skip general and text formats
+        if format_code == NumberingFormat::FORMAT_GENERAL || format_code == NumberingFormat::FORMAT_TEXT {
+            return false;
+        }
+        // Check for date/time indicators in format code
+        let lower = format_code.to_lowercase();
+        lower.contains('y') || lower.contains('m') || lower.contains('d')
+            || lower.contains('h') || lower.contains("am") || lower.contains("pm")
+    }
+
     /// Get cell value, truncated to fit column width with ellipsis
     pub fn get_cell_display(&self, col: u32, row: u32) -> String {
         if let Some(sheet) = self.spreadsheet.get_sheet(&self.current_sheet_index) {
-            let value = sheet.get_cell_value((col, row)).get_value().to_string();
+            let cell_value = sheet.get_cell_value((col, row));
+            let formula = cell_value.get_formula();
             let width = self.get_column_width(col) as usize;
 
-            if value.len() > width {
+            // For formula cells, show the cached result
+            let display_value = if !formula.is_empty() {
+                // Show calculated result (cached by Excel)
+                let result = cell_value.get_value().to_string();
+                if result.is_empty() {
+                    "=...".to_string()  // Formula with no cached result
+                } else {
+                    result
+                }
+            } else {
+                // Check for number format (date/time formatting)
+                let raw_value = cell_value.get_value().to_string();
+
+                // Try to get cell style and format
+                if let Some(cell) = sheet.get_cell((col, row)) {
+                    if let Some(num_fmt) = cell.get_style().get_number_format() {
+                        let format_code = num_fmt.get_format_code();
+                        if Self::is_date_format(format_code) {
+                            // Apply date formatting
+                            to_formatted_string(&raw_value, format_code)
+                        } else if format_code != NumberingFormat::FORMAT_GENERAL {
+                            // Apply other number formatting
+                            to_formatted_string(&raw_value, format_code)
+                        } else {
+                            raw_value
+                        }
+                    } else {
+                        raw_value
+                    }
+                } else {
+                    raw_value
+                }
+            };
+
+            if display_value.len() > width {
                 // Truncate with ellipsis
-                let truncated: String = value.chars().take(width.saturating_sub(1)).collect();
+                let truncated: String = display_value.chars().take(width.saturating_sub(1)).collect();
                 format!("{}~", truncated)
             } else {
-                value
+                display_value
             }
         } else {
             String::new()

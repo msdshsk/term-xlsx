@@ -95,13 +95,26 @@ fn draw_grid(f: &mut Frame, app: &mut App, area: Rect) {
 
             let is_cursor = row_idx == app.cursor.0 && col_idx == app.cursor.1;
             let is_selected = app.selection.contains(row_idx, col_idx);
+            let is_formula = app.is_formula_cell(col_idx, row_idx);
             let mark = app.get_cell_mark(row_idx, col_idx);
 
-            // Build style: cursor > selection > mark > default
+            // Build style: cursor > selection > formula > mark > default
             let style = if is_cursor {
-                Style::default().bg(Color::Blue).fg(Color::White)
+                if is_formula {
+                    // Formula cell under cursor: blue bg + italic
+                    Style::default().bg(Color::Blue).fg(Color::White).add_modifier(Modifier::ITALIC)
+                } else {
+                    Style::default().bg(Color::Blue).fg(Color::White)
+                }
             } else if is_selected {
-                Style::default().bg(Color::DarkGray).fg(Color::White)
+                if is_formula {
+                    Style::default().bg(Color::DarkGray).fg(Color::White).add_modifier(Modifier::ITALIC)
+                } else {
+                    Style::default().bg(Color::DarkGray).fg(Color::White)
+                }
+            } else if is_formula {
+                // Formula cells: gray background + italic to indicate read-only
+                Style::default().bg(Color::Rgb(60, 60, 60)).fg(Color::Cyan).add_modifier(Modifier::ITALIC)
             } else {
                 match mark {
                     CellMark::None => Style::default(),
